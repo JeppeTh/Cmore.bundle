@@ -19,9 +19,14 @@ def MakeVideoObject(url, item):
 
     if 'metadata' in item and 'homeTeamImage' in item['metadata']:
         thumb = item['metadata']['homeTeamImage']
+    if not thumb and 'imageUrl' in item:
+        thumb = item['imageUrl']
+
     # If called from ServiceCode url is already fixed...
     if re.search("/sport/[0-9]+/", url):
         url = re.sub("/sport/[0-9]+/", "/%s/" % item['id'], url)
+    elif re.search("/channels/[\-0-9]+/", url):
+        url = re.sub("/channels/[\-0-9]+/", "/asset/%s/" % item['id'], url)
 
     return VideoClipObject(title    = AddEpgInfo(item['title'], item),
                            thumb    = thumb,
@@ -52,4 +57,5 @@ def AddEpgInfo(title, item):
         return '%s: %s' % (epg, title)
     except Exception as e:
         Log("JTDEBUG AddEpgInfo failed:%s" % e)
+        pass
     return title

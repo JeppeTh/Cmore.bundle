@@ -1,3 +1,5 @@
+import datetime
+
 URLS = [{'site':'se', 'id':160000, 'lang':'sv_SE'},
         {'site':'no', 'id':160146, 'lang':'nb_NO'},
         {'site':'dk', 'id':162715, 'lang':'da_DK'}
@@ -46,12 +48,17 @@ def MainMenu():
     try:
         Login()
         site = Prefs['site'].lower()
-        start_url = "http://mobilemid-direkt.cmore.se/cmore/query/asset/sport/"
+        sport_url   = "http://mobilemid-direkt.cmore.se/cmore/query/asset/sport/"
+        channel_url = "http://mobilemid-direkt.cmore.se/cmore/query/channels/"
         for item in URLS:
             if site == item['site']:
-                start_url = start_url + "%i/%s?Country=%s" % (item['id'], item['lang'], item['lang'])
+                extra = "%s?Country=%s" % (item['lang'], item['lang'])
+                sport_url = sport_url + "%i/" % item['id'] + extra
+                today = datetime.datetime.now().strftime('%Y-%m-%d')
+                channel_url = channel_url + "%s/" % today + extra
                 break
-        oc.add(CreateDirObject("Sport", Callback(Category, title2="Sport", url=start_url)))
+        oc.add(CreateDirObject("Sport", Callback(Category, title2="Sport", url=sport_url)))
+        oc.add(CreateDirObject("Channels", Callback(Channels, title2="Channels", url=channel_url)))
         oc.add(CreateDirObject("Re-Login", Callback(ReLogin)))
         oc.add(PrefsObject(title = L('Preferences Menu Title'), thumb=R(ICON_PREFS)))
     except Exception as e:
@@ -69,6 +76,16 @@ def Category(title2, url):
         oc.add(MakeVideoObject(url, item))
         if len(oc) >= MAX_LEN:
             break
+    return oc
+
+@route('/video/cmore/channels')
+def Channels(title2, url):
+    Log("JTDEBUG Channels(%s %s)" % (title2, url))
+    oc = ObjectContainer(title2=unicode(title2))
+    for item in JSON.ObjectFromURL(url)['result']:
+        if 'isSport' in item and not item['isSport']:
+            continue
+        oc.add(MakeVideoObject(url, item['asset']))
     return oc
 
 @route('/video/cmore/relogin', 'GET')
