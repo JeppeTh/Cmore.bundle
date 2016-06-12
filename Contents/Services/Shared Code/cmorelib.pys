@@ -1,0 +1,55 @@
+import re, datetime 
+
+ICON = 'icon-default.png'
+
+def Login(ReLogin=False):
+    url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user"
+    if ReLogin or not "SESSION_AUTHENTICATED" in HTTP.Request(url=url,cacheTime=0).content:
+        url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login"
+        params = {'username': Prefs['username'],'password': Prefs['password'], 'rememberMe': "false"}
+        if not "AUTHENTICATION_OK" in HTTP.Request(url=url, values=params, cacheTime=0).content:
+            raise Exception("Login Failed")
+
+def MakeVideoObject(url, item):
+    thumb = R(ICON)
+    try:
+        duration = int(item['duration'])*60*1000
+    except:
+        duration = None
+
+    if 'metadata' in item and 'homeTeamImage' in item['metadata']:
+        thumb = item['metadata']['homeTeamImage']
+    # If called from ServiceCode url is already fixed...
+    if re.search("/sport/[0-9]+/", url):
+        url = re.sub("/sport/[0-9]+/", "/%s/" % item['id'], url)
+
+    return VideoClipObject(title    = AddEpgInfo(item['title'], item),
+                           thumb    = thumb,
+                           url      = url,
+                           duration = duration,
+                           )
+
+def AddEpgInfo(title, item):
+    try:
+        start_time = datetime.datetime.fromtimestamp(item['liveBroadcastTime']/1000.)
+        end_time = datetime.datetime.fromtimestamp(item['expireDate']/1000.)
+        now = datetime.datetime.now()
+
+        if start_time < now and now < end_time:
+            epg = "Now"
+        elif now > end_time:
+            epg = "Ended %s" % end_time.strftime('%H:%M')
+        else:
+            if start_time.strftime('%Y%m%d') == now.strftime('%Y%m%d'):
+                # Today
+                epg = start_time.strftime('%H:%M')
+            elif (start_time.timetuple().tm_yday - now.timetuple().tm_yday) < 7:
+                # Within a week
+                epg = start_time.strftime('%A %H:%M')
+            else:
+                epg = start_time.strftime('%b %d %H:%M')
+
+        return '%s: %s' % (epg, title)
+    except Exception as e:
+        Log("JTDEBUG AddEpgInfo failed:%s" % e)
+    return title

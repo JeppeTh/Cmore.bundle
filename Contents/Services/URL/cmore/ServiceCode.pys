@@ -1,0 +1,55 @@
+import re
+
+from cmorelib import Login as Login
+from cmorelib import MakeVideoObject as MakeVideoObject
+
+####################################################################################################
+def MetadataObjectForURL(url):
+    try:
+        return MakeVideoObject(url, JSON.ObjectFromURL(url)['result'])
+    except Exception as e:
+        Log("JTDEBUG MakeVideoObject failed:%s" %e)
+        return VideoClipObject()
+
+####################################################################################################
+def MediaObjectsForURL(url):
+
+    return [
+        MediaObject(
+            parts = [PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url, platform=Client.Platform)))],
+            audio_channels = 2,
+            optimized_for_streaming = True
+            )
+        ]
+
+####################################################################################################
+@indirect
+def PlayVideo(url, platform):
+
+    stream_url = GetStream(url)
+    Log("JTDEBUG video_url:%s" % stream_url)
+    return IndirectResponse(
+        VideoClipObject,
+        key = HTTPLiveStreamURL(url=stream_url)
+        )
+
+####################################################################################################
+def GetStream(org_url):
+    try:
+        Login()
+        url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/web/asset/%s/play" % re.findall("asset/([0-9]+)/", org_url)[0]
+        xmlElement = XML.ElementFromURL(url=url)
+        if "OK" == xmlElement.xpath("//playback//playbackStatus/text()")[0]:
+            for item in xmlElement.xpath("//playback//items//item"):
+                video_url = item.xpath(".//url/text()")[0]
+                if ".m3u8" in video_url:
+                    return video_url
+                
+    except Exception as e:
+        Log("JTDEBUG GetStream Exception:%s" % e)
+        pass
+    raise Ex.MediaNotAvailable
+
+####################################################################################################
+def NormalizeURL(url):
+    return url
