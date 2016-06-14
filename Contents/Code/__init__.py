@@ -57,7 +57,7 @@ def MainMenu():
                 today = datetime.datetime.now().strftime('%Y-%m-%d')
                 channel_url = channel_url + "%s/" % today + extra
                 break
-        oc.add(CreateDirObject("Sport", Callback(Category, title2="Sport", url=sport_url)))
+        oc.add(CreateDirObject("Live", Callback(Category, title2="Live", url=sport_url)))
         oc.add(CreateDirObject("Channels", Callback(Channels, title2="Channels", url=channel_url)))
         oc.add(CreateDirObject("Re-Login", Callback(ReLogin)))
         oc.add(PrefsObject(title = L('Preferences Menu Title'), thumb=R(ICON_PREFS)))

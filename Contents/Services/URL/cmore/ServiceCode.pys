@@ -44,6 +44,8 @@ def GetStream(org_url):
                 video_url = item.xpath(".//url/text()")[0]
                 if ".m3u8" in video_url:
                     return video_url
+        else:
+            raise Ex.LiveMediaNotStarted
                 
     except Exception as e:
         Log("JTDEBUG GetStream Exception:%s" % e)
