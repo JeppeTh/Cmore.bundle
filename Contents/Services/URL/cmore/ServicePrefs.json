@@ -18,5 +18,11 @@
     "option":"hidden",
     "label":"Password",
     "default":"",
+  },
+  {
+    "id": "playerDecideBitRate",
+    "type": "bool",
+    "label": "Let Player decide bitrate",
+    "default": "true"
   }
 ]

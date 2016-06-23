@@ -3,6 +3,8 @@ import re
 from cmorelib import Login as Login
 from cmorelib import MakeVideoObject as MakeVideoObject
 
+RE_HLS_VERSION = Regex('EXT-X-VERSION *: *([0-9]+)')
+
 ####################################################################################################
 def MetadataObjectForURL(url):
     try:
@@ -12,26 +14,41 @@ def MetadataObjectForURL(url):
         return VideoClipObject()
 
 ####################################################################################################
+@deferred
 def MediaObjectsForURL(url):
 
-    return [
-        MediaObject(
-            parts = [PartObject(key=HTTPLiveStreamURL(Callback(PlayVideo, url=url, platform=Client.Platform)))],
-            audio_channels = 2,
-            optimized_for_streaming = True
+    stream_url = GetStream(url)
+    streams    = GetHlsStreams(stream_url)
+    
+    if UseMasterPlaylist(streams[0]['url']):
+        stream = {}
+        stream['url']        = stream_url
+        stream['bitrate']    = None
+        stream['resolution'] = None
+        streams = [stream]
+
+    mo = []
+    for s in streams:
+        Log("JTDEBUG stream:%r" % s['url'])
+        mo.append(
+            MediaObject(
+                parts = [PartObject(key=HTTPLiveStreamURL(url=s['url']))],
+                audio_channels = 2,
+                video_resolution = s['resolution'],
+                optimized_for_streaming = True,
+                bitrate = s['bitrate']
+                )
             )
-        ]
+    return mo
 
 ####################################################################################################
-@indirect
-def PlayVideo(url, platform):
-
-    stream_url = GetStream(url)
-    Log("JTDEBUG video_url:%s" % stream_url)
-    return IndirectResponse(
-        VideoClipObject,
-        key = HTTPLiveStreamURL(url=stream_url)
-        )
+def UseMasterPlaylist(url):
+    if Prefs['playerDecideBitRate']:
+        return True
+    ## Check if version is > 3
+    playlist = HTTP.Request(url).content
+    ## Must use master in case > version 3
+    return int(RE_HLS_VERSION.search(playlist).group(1)) > 3
 
 ####################################################################################################
 def GetStream(org_url):
@@ -51,6 +68,67 @@ def GetStream(org_url):
         Log("JTDEBUG GetStream Exception:%s" % e)
         pass
     raise Ex.MediaNotAvailable
+
+####################################################################################################
+def GetHlsStreams(hlsUrl):
+
+    url_params = re.sub(".+(\.m3u8.*)","\\1", hlsUrl) 
+
+    streams = []
+    Found   = True  
+    
+    try: 
+        pageElement = HTML.ElementFromURL(hlsUrl)
+    except:
+        Found = False
+        
+    if Found:
+        streamSpec      = pageElement.xpath("text()")[0]
+        anyResolution   = re.search('(?<=RESOLUTION=)[0-9]+x[0-9]+', streamSpec)
+        streamSpecLines = streamSpec.splitlines()
+    
+        path = hlsUrl[ : hlsUrl.split("?")[0].rfind('/') + 1]
+    
+        # Parse the m3u8 file to get:
+        # - URL
+        # - Resolution
+        # - Bitrate
+        stream = {}
+        for line in streamSpecLines:
+            # Log("[JTDEBUG] line:%s" % line)
+            if "TYPE=SUBTITLES" in line:
+                continue
+            if "BANDWIDTH" in line:
+                bwm = re.search('(?<=BANDWIDTH=)[0-9]+', line)
+        
+                stream["bitrate"] = int(int(bwm.group(0))/1024)
+                # Log("[JTDEBUG] bitrate:%s" % stream["bitrate"])
+        
+                if "RESOLUTION" in line:
+                    rnm                  = re.search('(?<=RESOLUTION=)[0-9]+x[0-9]+', line)
+                    stream["resolution"] = int(rnm.group(0).split("x")[1])
+                else:
+                    stream["resolution"] = 0
+
+                # Log("[JTDEBUG] resolution:%s" % stream["resolution"])
+            
+            elif ".m3u8" in line and "bitrate" in stream:
+                if not line.startswith("http"):
+                   stream["url"] = path + line
+                else:
+                   stream["url"] = line
+                if stream["url"].endswith(".m3u8"):
+                    # Add url params
+                    stream["url"] = re.sub("\.m3u8", url_params, stream["url"])
+                # Log("[JTDEBUG] url:%s" % stream["url"])
+                # Avoid audio only streams
+                if stream["resolution"] > 0 or not anyResolution:
+                    streams.append(stream)
+                stream = {}
+
+    sorted_streams = sorted(streams, key = lambda stream: stream["bitrate"], reverse = True)
+
+    return sorted_streams
 
 ####################################################################################################
 def NormalizeURL(url):
