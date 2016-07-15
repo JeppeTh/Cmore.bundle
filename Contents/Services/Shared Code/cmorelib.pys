@@ -5,10 +5,40 @@ ICON = 'icon-default.png'
 def Login(ReLogin=False):
     url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user"
     if ReLogin or not "SESSION_AUTHENTICATED" in HTTP.Request(url=url,cacheTime=0).content:
-        url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login"
-        params = {'username': Prefs['username'],'password': Prefs['password'], 'rememberMe': "false"}
+        url, params = GetLoginParameters()
         if not "AUTHENTICATION_OK" in HTTP.Request(url=url, values=params, cacheTime=0).content:
             raise Exception("Login Failed")
+
+def GetLoginParameters():
+    if Prefs['operator'] and Prefs['operator'] != "":
+        for variant in GetOperator():
+            try:
+                operator = variant
+                HTTP.Request(url=MakeOperatorLoginUrl(operator,"user","password")).content
+                break
+            except:
+                pass
+        return MakeOperatorLoginUrl(operator,Prefs['username'],Prefs['password']), None
+    else:
+        url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login"
+        params = {'username': Prefs['username'],'password': Prefs['password'], 'rememberMe': "false"}
+    return url, params
+
+def MakeOperatorLoginUrl(operator, user, password):
+    return "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s/%s/%s" % (operator, Prefs['site'].upper(), String.Quote(user), String.Quote(password))
+
+def GetOperator():
+    url = "http://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/operators/1/%s/%s" % (Prefs['site'].upper(), Prefs['site'].upper())
+    # operators = JSON.ObjectFromURL(url=url, headers={'Accept':"application/json"})
+    configured = Prefs['operator'].lower()
+    available_operators = []
+    for operator in JSON.ObjectFromURL(url=url)['Items']:
+        available_operators.append(operator['Name'])
+        if operator['Title'].lower() == configured or operator['Name'].lower() == configured:
+            return operator['Name'], operator['Title']
+    Log("JTDEBUG - operator not found - invalid configuration? Operator: '%s'" % Prefs['operator'])
+    Log("JTDEBUG - Available Operators are: %s" % ','.join(available_operators))
+    return Prefs['operator'], Prefs['operator']
 
 def MakeVideoObject(url, item):
     thumb = R(ICON)

@@ -20,6 +20,12 @@
     "default":"",
   },
   {
+    "id":"operator",
+    "type":"text",
+    "label":"Operator Name (Optional)",
+    "default":"",
+  },
+  {
     "id": "playerDecideBitRate",
     "type": "bool",
     "label": "Let Player decide bitrate",
