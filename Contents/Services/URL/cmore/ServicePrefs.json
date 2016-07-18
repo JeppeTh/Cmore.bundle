@@ -26,6 +26,12 @@
     "default":"",
   },
   {
+    "id":"hide_operator_password",
+    "type":"bool",
+    "label":"Try operator variant",
+    "default":"false",
+  },
+  {
     "id": "playerDecideBitRate",
     "type": "bool",
     "label": "Let Player decide bitrate",
