@@ -6,8 +6,9 @@ def Login(ReLogin=False):
     url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user"
     if ReLogin or not "SESSION_AUTHENTICATED" in HTTP.Request(url=url,cacheTime=0).content:
         url, params = GetLoginParameters()
-        if not "AUTHENTICATION_OK" in HTTP.Request(url=url, values=params, cacheTime=0).content:
-            raise Exception("Login Failed")
+        login_result = HTTP.Request(url=url, values=params, cacheTime=0).content
+        if not "AUTHENTICATION_OK" in login_result:
+            raise Exception("Login Failed: %r" % login_result)
 
 def GetLoginParameters():
     if Prefs['operator'] and Prefs['operator'] != "":
