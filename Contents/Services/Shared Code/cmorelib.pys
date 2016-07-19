@@ -5,12 +5,26 @@ ICON = 'icon-default.png'
 def Login(ReLogin=False):
 
     status_url, login_url, params = GetLoginParameters()
-
-    if ReLogin or not IsLoginOk(JSON.ObjectFromURL(url=status_url,cacheTime=0)):
+    status_cookie = HTTP.CookiesForURL(status_url)
+    Log("JTDEBUG status_cookie: %r" % status_cookie)
+    status_headers={}
+    try:
+        login_cookie = HTTP.CookiesForURL(login_url)
+        if not status_cookie and login_cookie:
+            Log("JTDEBUG using login_cookie as status_cookie")
+            status_headers={'Cookie':login_cookie}
+    except Exception as e:
+        pass
+    if ReLogin or not IsLoginOk(JSON.ObjectFromURL(url=status_url, headers=status_headers, cacheTime=0)):
         login_result = HTTP.Request(url=login_url, values=params, cacheTime=0).content
         if not IsLoginOk(JSON.ObjectFromString(login_result)):
             Log("JTDEBUG Login Failed: %r" % login_result)
             raise Exception("Login Failed: %r" % login_result)
+        else:
+            Log("JTDEBUG login cookies %r" % HTTP.CookiesForURL(login_url))
+            return HTTP.CookiesForURL(login_url)
+
+    return HTTP.CookiesForURL(status_url)
 
 def IsLoginOk(json_result):
     if 'response' in json_result:
@@ -41,15 +55,8 @@ def GetOperatorLoginParams(operator, user, password):
     status_url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
     # I suspect it should be 
     # status_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s" % (operator, Prefs['site'].upper())
-    params = None
-    if Prefs['hide_operator_password']:
-        params = {'"%s[user][user_name]' % operator.lower() : Prefs['username'],
-                  '"%s[user][password]' % operator.lower()  : Prefs['password']
-                  }
-        login_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login.json"
-    else:
-        login_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s/%s/%s" % (operator, Prefs['site'].upper(), String.Quote(user), String.Quote(password))
-    return status_url, login_url, params
+    login_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s/%s/%s" % (operator, Prefs['site'].upper(), String.Quote(user), String.Quote(password))
+    return status_url, login_url, None
 
 def GetOperator():
     url = "http://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/operators/1/%s/%s" % (Prefs['site'].upper(), Prefs['site'].upper())
@@ -90,13 +97,16 @@ def MakeVideoObject(url, item):
 
 def AddEpgInfo(title, item):
     try:
-        start_time = datetime.datetime.fromtimestamp(item['liveBroadcastTime']/1000.)
-        end_time = datetime.datetime.fromtimestamp(item['expireDate']/1000.)
         now = datetime.datetime.now()
+        start_time = datetime.datetime.fromtimestamp(item['liveBroadcastTime']/1000.)
+        if 'expireDate' in item and item['expireDate']:
+            end_time = datetime.datetime.fromtimestamp(item['expireDate']/1000.)
+        else:
+            end_time = None
 
-        if start_time < now and now < end_time:
+        if start_time < now and (not end_time or now < end_time):
             epg = "Now"
-        elif now > end_time:
+        elif end_time and now > end_time:
             epg = "Ended %s" % end_time.strftime('%H:%M')
         else:
             if start_time.strftime('%Y%m%d') == now.strftime('%Y%m%d'):
@@ -110,6 +120,6 @@ def AddEpgInfo(title, item):
 
         return '%s: %s' % (epg, title)
     except Exception as e:
-        Log("JTDEBUG AddEpgInfo failed:%s" % e)
+        Log("JTDEBUG AddEpgInfo failed for title:%s item:%r failed:%s " % (title, item, e))
         pass
     return title

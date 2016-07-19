@@ -53,9 +53,21 @@ def UseMasterPlaylist(url):
 ####################################################################################################
 def GetStream(org_url):
     try:
-        Login()
+        login_cookie = Login()
         url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/web/asset/%s/play" % re.findall("asset/([0-9]+)/", org_url)[0]
-        xmlElement = XML.ElementFromURL(url=url)
+        try:
+            playback_cookie = HTTP.CookiesForURL(url)
+        except:
+            playback_cookie = None
+            pass
+
+        if playback_cookie:
+            playback_headers = {}
+            Log("JTDEBUG using cookie for playback:%r" % playback_cookie)
+        elif login_cookie:
+            Log("JTDEBUG using login_cookie for playback:%r" % login_cookie)
+            playback_headers={'Cookie':login_cookie}
+        xmlElement = XML.ElementFromURL(url=url, headers=playback_headers)
         if "OK" == xmlElement.xpath("//playback//playbackStatus/text()")[0]:
             for item in xmlElement.xpath("//playback//items//item"):
                 video_url = item.xpath(".//url/text()")[0]
