@@ -3,6 +3,14 @@ import re, datetime
 ICON = 'icon-default.png'
 
 def Login(ReLogin=False):
+    try:
+        return DoLogin(ReLogin)
+    except Exception as e:
+        Log("JTDEBUG DoLogin Failed: %s" % e)
+        raise e
+    
+
+def DoLogin(ReLogin=False):
 
     status_url, login_url, params = GetLoginParameters()
     status_cookie = HTTP.CookiesForURL(status_url)
@@ -46,13 +54,13 @@ def GetLoginParameters():
                 pass
         return GetOperatorLoginParams(operator,Prefs['username'],Prefs['password'])
     else:
-        status_url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
+        status_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
         login_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login.json"
         params = {'username': Prefs['username'],'password': Prefs['password'], 'rememberMe': "false"}
         return status_url, login_url, params
 
 def GetOperatorLoginParams(operator, user, password):
-    status_url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
+    status_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
     # I suspect it should be 
     # status_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s" % (operator, Prefs['site'].upper())
     login_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s/%s/%s" % (operator, Prefs['site'].upper(), String.Quote(user), String.Quote(password))
