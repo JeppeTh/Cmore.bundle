@@ -96,21 +96,12 @@ def GetLanguage():
 ####################################################################################################
 def GetStream(org_url):
     try:
-        login_cookie = Login()
-        url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/web/asset/%s/play.json" % re.findall("asset/([0-9]+)/", org_url)[0]
-        try:
-            playback_cookie = HTTP.CookiesForURL(url)
-        except:
-            playback_cookie = None
-            pass
+        auth_header = Login()
+        # Log("JTDEBUG auth_header: %r" % auth_header)
 
-        if playback_cookie:
-            playback_headers = {}
-            Log("JTDEBUG using cookie for playback:%r" % playback_cookie)
-        elif login_cookie:
-            Log("JTDEBUG using login_cookie for playback:%r" % login_cookie)
-            playback_headers={'Cookie':login_cookie}
-        json = JSON.ObjectFromURL(url=url, headers=playback_headers)
+        url = "http://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/web/asset/%s/play.json" % re.findall("asset/([0-9]+)/", org_url)[0]
+
+        json = JSON.ObjectFromURL(url=url, headers=auth_header)
         if 'playback' in json and json['playback']['playbackStatus'] == "OK":
             for item in json['playback']['items']['item']:
                 video_url = item['url']

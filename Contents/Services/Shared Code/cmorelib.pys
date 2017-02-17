@@ -2,6 +2,8 @@ import re, datetime
 
 ICON = 'icon-default.png'
 
+AUTH_HEADER = {}
+
 def Login(ReLogin=False):
     try:
         return DoLogin(ReLogin)
@@ -11,28 +13,36 @@ def Login(ReLogin=False):
     
 
 def DoLogin(ReLogin=False):
+    if ReLogin:
+        HTTP.ClearCookies()
 
-    status_url, login_url, params = GetLoginParameters()
-    status_cookie = HTTP.CookiesForURL(status_url)
-    Log("JTDEBUG status_cookie: %r" % status_cookie)
-    status_headers={}
+    status_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
+    login_url, params = GetLoginParameters()
+    cookies = HTTP.CookiesForURL(status_url)
     try:
-        login_cookie = HTTP.CookiesForURL(login_url)
-        if not status_cookie and login_cookie:
-            Log("JTDEBUG using login_cookie as status_cookie")
-            status_headers={'Cookie':login_cookie}
+        cookies = HTTP.CookiesForURL(login_url)
     except Exception as e:
         pass
-    if ReLogin or not IsLoginOk(JSON.ObjectFromURL(url=status_url, headers=status_headers, cacheTime=0)):
+    if ReLogin or not IsLoggedIn(status_url, cookies):
         login_result = HTTP.Request(url=login_url, values=params, cacheTime=0).content
-        if not IsLoginOk(JSON.ObjectFromString(login_result)):
+        if not IsLoginOk(JSON.ObjectFromString(login_result)) or not IsLoggedIn(status_url, HTTP.CookiesForURL(login_url)):
             Log("JTDEBUG Login Failed: %r" % login_result)
             raise Exception("Login Failed: %r" % login_result)
-        else:
-            Log("JTDEBUG login cookies %r" % HTTP.CookiesForURL(login_url))
-            return HTTP.CookiesForURL(login_url)
+    # Log("JTDEBUG AUTH_HEADER: %r" % AUTH_HEADER)
+    return AUTH_HEADER
 
-    return HTTP.CookiesForURL(status_url)
+def IsLoggedIn(status_url, cookies):
+    global AUTH_HEADER
+    auth_header = GetAuthorizationHeader(cookies)
+    if auth_header:
+        AUTH_HEADER = auth_header
+    return IsLoginOk(JSON.ObjectFromURL(url=status_url, headers=AUTH_HEADER, cacheTime=0))
+
+def GetAuthorizationHeader(cookies):
+    if cookies and re.search('Authorization=([^;]+)', cookies):
+        return {'Authorization':re.search('Authorization="([^";]+)', cookies).group(1)}
+    else:
+        return None
 
 def IsLoginOk(json_result):
     if 'response' in json_result:
@@ -40,9 +50,12 @@ def IsLoginOk(json_result):
         return code == 'AUTHENTICATION_OK' or code == 'SESSION_AUTHENTICATED'
     elif 'Status' in json_result:
         return json_result['Status']['Code'] == 0
+    elif 'login_success' in json_result:
+        return json_result['login_success']
     return False
 
 def GetLoginParameters():
+    global AUTH_HEADER
     if Prefs['operator'] and Prefs['operator'] != "":
         for variant in GetOperator():
             try:
@@ -52,19 +65,18 @@ def GetLoginParameters():
                 break
             except:
                 pass
+        if AUTH_HEADER == {}:
+            HTTP.ClearCookies()
         return GetOperatorLoginParams(operator,Prefs['username'],Prefs['password'])
     else:
-        status_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
         login_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user/login.json"
         params = {'username': Prefs['username'],'password': Prefs['password'], 'rememberMe': "false"}
-        return status_url, login_url, params
+        AUTH_HEADER = {}
+        return login_url, params
 
 def GetOperatorLoginParams(operator, user, password):
-    status_url = "https://middleware2sams.cmore.se/dispatch/restapi-internal.cmore.se/api/authentication/user.json"
-    # I suspect it should be 
-    # status_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s" % (operator, Prefs['site'].upper())
     login_url = "https://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/user/1/%s/%s/%s/%s" % (operator, Prefs['site'].upper(), String.Quote(user), String.Quote(password))
-    return status_url, login_url, None
+    return login_url, None
 
 def GetOperator():
     url = "http://middleware2sams.cmore.se/dispatch/authenticate.cmore.se/api/operators/1/%s/%s" % (Prefs['site'].upper(), Prefs['site'].upper())
